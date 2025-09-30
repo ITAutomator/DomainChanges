@@ -76,7 +76,6 @@ $settings = CSVSettingsLoad $csvFile
 $settings_updated = $false
 if ($null -eq $settings.NewDomain) {$settings.NewDomain = "newdomain.com"; $settings_updated = $true}
 if ($settings_updated) {$retVal = CSVSettingsSave $settings $csvFile; Write-Host "Initialized - $($retVal)"}
-
 do {
     Write-Host "Domain to add (to everything that needs it): " -NoNewline
     Write-Host $settings.NewDomain -ForegroundColor Yellow
@@ -207,7 +206,13 @@ while ($true) {
 } # while true forever loop
 Write-Host
 #endregion Connect-ExchangeOnline
-
+$makechanges = AskForChoice "Ready to go live or just checking. Yes: Make changes, No: Just checking?"
+if ($makechanges) {
+    Write-Host "You chose to MAKE CHANGES" -ForegroundColor Red
+} else {
+    Write-Host "You chose to just check (no changes will be made)" -ForegroundColor Yellow
+}
+PressEnterToContinue
 # === USERS ===
 $objs = Get-MgUser -All -Property @("Id", "DisplayName", "UserPrincipalName", "MailNickname", "ProxyAddresses","UserType")
 $objs = $objs | Where-Object { $_.UserType -eq "Member" -and $_.ProxyAddresses -ne $null }
@@ -225,8 +230,13 @@ ForEach ($obj in $objs | Sort-Object DisplayName) {
     }
     $alias = "$($nick)@$($NewDomain)"
     if ($user.UserPrincipalName -ne $alias) {
-        Update-MgUser -UserId $user.Id -UserPrincipalName $alias
-        Write-Host " [Changed UPN to $alias]" -ForegroundColor Yellow
+        if (-not $makechanges) {
+            Write-Host " [Would change UPN to $alias]" -ForegroundColor Yellow
+        }
+        else {
+            Update-MgUser -UserId $user.Id -UserPrincipalName $alias
+            Write-Host " [Changed UPN to $alias]" -ForegroundColor Yellow
+        }
     } else {
         Write-Host " [UPN already set to $alias]" -ForegroundColor Green
     }
@@ -244,13 +254,19 @@ ForEach ($obj in $objs) {
     if ($ProxyStatus -eq "primary") {
         Write-Host " [$($alias) Alias already primary]" -ForegroundColor Green
     } else {
+        if (-not $makechanges) {
+            $wouldclause = "Would"
+        } else {
+            $wouldclause = ""
+        }   
         if ($ProxyStatus -eq "nonprimary") {
-            Write-Host " [$($alias) Promoted existing alias to primary]" -ForegroundColor Yellow
+            Write-Host " [$($alias) $($wouldclause) Promote existing alias to primary]" -ForegroundColor Yellow
         } elseif ($ProxyStatus -eq "notfound") {
-            Write-Host " [$($alias) Adding new primary alias]" -ForegroundColor Yellow
+            Write-Host " [$($alias) $($wouldclause) Add new primary alias]" -ForegroundColor Yellow
         }
-        # Update-MgGroup -GroupId $group.Id -ProxyAddresses $ProxyWithPrimary # permissions issue with graph call
-        Set-UnifiedGroup -Identity $group.MailNickname -PrimarySmtpAddress $alias
+        if ($makechanges) {
+            Set-UnifiedGroup -Identity $group.MailNickname -PrimarySmtpAddress $alias
+        }     
     }
 }
 # === MAIL-ENABLED SECURITY GROUPS / DISTRIBUTION LISTS ===
@@ -266,12 +282,19 @@ ForEach ($obj in $objs) {
     if ($ProxyStatus -eq "primary") {
         Write-Host " [$($alias) Alias already primary]" -ForegroundColor Green
     } else {
+        if (-not $makechanges) {
+            $wouldclause = "Would"
+        } else {
+            $wouldclause = ""
+        }   
         if ($ProxyStatus -eq "nonprimary") {
-            Write-Host " [$($alias) Promoted existing alias to primary]" -ForegroundColor Yellow
+            Write-Host " [$($alias) $($wouldclause) Promote existing alias to primary]" -ForegroundColor Yellow
         } elseif ($ProxyStatus -eq "notfound") {
-            Write-Host " [$($alias) Adding new primary alias]" -ForegroundColor Yellow
+            Write-Host " [$($alias) $($wouldclause) Add new primary alias]" -ForegroundColor Yellow
         }
-        Set-DistributionGroup -Identity $group.id -EmailAddresses $ProxyWithPrimary
+        if ($makechanges) {
+            Set-DistributionGroup -Identity $group.id -EmailAddresses $ProxyWithPrimary
+        }
     }
 }
 Write-Host "Done"
