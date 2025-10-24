@@ -1,8 +1,3 @@
-#####
-## To enable scrips, Run powershell 'as admin' then type
-## Set-ExecutionPolicy Unrestricted
-#####
-
 Function MakePrimaryinProxy {
     param (
         [string]$address,

@@ -1,11 +1,11 @@
 # DomainChanges
 Methods to change aliases or UPNs in bulk.
 
-AliasAdd.ps1 - Use this add an alias (and make it primary) to everything: Users, M365 Groups, Distribution Lists"  
-UserUPNChange.ps1 - Use this update UPN of users (if needed) based on a CSV file  
+AliasAdd.ps1 - Use this to add an alias (and make it primary) to everything: Users, M365 Groups, Distribution Lists"  
+UserUPNChange.ps1 - Use this to update UPN of users (if needed) based on a CSV file  
 
 # AliasAdd.ps1
-Use this add an alias (and make it primary) to everything: Users, M365 Groups, Distribution Lists  
+Use this to add an alias (and make it primary) to everything: Users, M365 Groups, Distribution Lists  
 
 This script will prompt for the new domain name.  e.g. newdomain.com  
 You can run it in *view only* mode to see what changes it will make without touching anything.  

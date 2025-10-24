@@ -1,16 +1,15 @@
 # DomainChanges
 Methods to change aliases or UPNs in bulk.
 
-AliasAdd.ps1 - Use this add an alias (and make it primary) to everything: Users, M365 Groups, Distribution Lists"  
-UserUPNChange.ps1 - Use this update UPN of users (if needed) based on a CSV file  
+AliasAdd.ps1 - Use this to add an alias (and make it primary) to everything: Users, M365 Groups, Distribution Lists"  
+UserUPNChange.ps1 - Use this to update UPN of users (if needed) based on a CSV file  
 
 # UserUPNChange.ps1
-Use this update UPN of users (if needed) based on a CSV file    
+Use this to update UPN of users (if needed) based on a CSV file    
 
 On first run, this script will create an input CSV for the users to adjust.  
 ` DisplayName,AliasAndUPNToEnforce`  
 ` Business Owner,owner@contoso.com`  
-
 
 Users are looked up based on DisplayName.  
 Then the AliasAndUPNToEnforce will be added and made primary (if needed).  
