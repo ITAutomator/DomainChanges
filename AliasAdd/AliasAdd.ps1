@@ -96,6 +96,8 @@ $modules=@()
 $modules+="Microsoft.Graph.Authentication"
 $modules+="Microsoft.Graph.Groups"
 $modules+="Microsoft.Graph.Identity.DirectoryManagement"
+$modules+="Microsoft.Graph.Users"
+$modules+="ExchangeOnlineManagement"
 ForEach ($module in $modules)
 { 
     Write-Host "Loadmodule $($module)..." -NoNewline ; $lm_result=LoadModule $module -checkver $false; Write-Host $lm_result
@@ -104,108 +106,136 @@ ForEach ($module in $modules)
     }
 }
 #endregion modules
-#region Connect-MgGraph
-if (-not (Get-Command -Name Connect-MgGraph -ErrorAction SilentlyContinue)) {
-    Write-Host "Connect-MgGraph is NOT available. You may need to install the Microsoft Graph module:"
-    Write-Host 'Install-Module Microsoft.Graph -Scope CurrentUser'
-    PressEnterToContinue
-    exit
-}
-# Check if we are already connected
-while ($true) {
-    # Check if already connected to Microsoft Graph
-    $mgContext = Get-MgContext
-    if ($mgContext -and $mgContext.Account -and $mgContext.TenantId) {
-        Write-Output "Already connected to Microsoft Graph."
-        Write-Output "Connected as: $($mgContext.Account)"
-        Write-Output "Tenant ID:    $($mgContext.TenantId)"
-        #Write-Output "Tenant Domain: $($mgContext.TenantDomain)"
-        # Make sure you're connected with Directory.Read.All or Directory.ReadWrite.All
-        $tenantDomain = (Get-MgDomain | Where-Object { $_.IsDefault }).Id
-        Write-Output "Tenant Domain: $tenantDomain"
-        $response = AskForChoice "Choice: " -Choices @("&Use this connection","&Disconnect and try again","E&xit") -ReturnString
-        # If the user types 'exit', break out of the loop
-        if ($response -eq 'Disconnect and try again') {
-            Write-Host "Disconnect-MgGraph..."
-            Disconnect-MgGraph | Out-Null
-            PressEnterToContinue "Done. Press <Enter> to connect again."
-            Continue # loop again
-        }
-        elseif ($response -eq 'exit') {
-            return
-        }
-        else { # on to next step
-            break
-        }
-    } else {
-        Write-Output "Not connected. Connecting now..."
-        Write-Host "We will try 'Connect-MgGraph' to authenticate. Before we do, open a browser to an admin session on the desired tenant."
+#region Connections
+if ($true) { # Connect-MgGraph
+    $mgScopes = @()
+    $mgScopes += "User.ReadWrite.All"
+    $mgScopes += "Mail.ReadWrite"
+    $mgScopes += "Directory.ReadWrite.All"
+    $mgScopes += "Group.ReadWrite.All"
+    if (-not (Get-Command -Name Connect-MgGraph -ErrorAction SilentlyContinue)) {
+        Write-Host "Connect-MgGraph is NOT available. You may need to install the Microsoft Graph module:"
+        Write-Host 'Install-Module Microsoft.Graph -Scope CurrentUser'
         PressEnterToContinue
-        Connect-MgGraph -Scopes "User.ReadWrite.All", "Mail.ReadWrite", "Directory.ReadWrite.All", "Group.ReadWrite.All"
-        #Connect-MgGraph -Scopes "User.ReadWrite.All", "Directory.ReadWrite.All"
-        # Confirm connection
-        $mgContext = Get-MgContext
-        if ($mgContext) {
-            Write-Output "Now connected to Microsoft Graph as $($mgContext.Account)"
-            #Write-Output "Tenant Domain: $($mgContext.TenantDomain)"
-            # Make sure you're connected with Directory.Read.All or Directory.ReadWrite.All
-            $tenantDomain = (Get-MgDomain | Where-Object { $_.IsDefault }).Id
-            Write-Output "Tenant Domain: $tenantDomain"
-        } else {
-            Write-Error "Failed to connect to Microsoft Graph."
-        }
+        exit
     }
-} # while true forever loop
-Write-Host
-#endregion Connect-MgGraph
-
-#region Connect-ExchangeOnline
-# Check if Connect-ExchangeOnline is available
-if (-not (Get-Command Connect-ExchangeOnline -ErrorAction SilentlyContinue)) {
-    Write-Host "ERROR: 'Connect-ExchangeOnline' command was not found."
-    Write-Host "Please install the ExchangeOnlineManagement module using:"
-    Write-Host "   Install-Module ExchangeOnlineManagement"
-    Write-Host "Or load the module if it is already installed, then try again."
-    Write-Host "Press any key to exit..."
-    PressEnterToContinue
-    exit
-}
-# Check if we are already connected
-while ($true) {
-    try {
-        $orgConfig = Get-OrganizationConfig -ErrorAction Stop
-        # The Identity property typically shows your tenant's name or domain
-        $tenantNameOrDomain = $orgConfig.Identity
-        Write-Host "You are currently connected to tenant: " -NoNewline
-        Write-host $tenantNameOrDomain -ForegroundColor Green
-        $response = AskForChoice "Choice: " -Choices @("&Use this connection","&Disconnect and try again","E&xit") -ReturnString
-        # If the user types 'exit', break out of the loop
-        if ($response -eq 'Disconnect and try again') {
-            Write-Host "Disconnect-ExchangeOnline..."
-            $null = Disconnect-ExchangeOnline -Confirm:$false
-            PressEnterToContinue "Done. Press <Enter> to connect again."
+    # Check if we are already connected
+    while ($true) {
+        # Check if already connected to Microsoft Graph
+        $mgContext = Get-MgContext
+        if ($mgContext -and $mgContext.Account -and $mgContext.TenantId) {
+            $tenantDomain = (Get-MgDomain | Where-Object { $_.IsDefault }).Id
+            Write-Host "Connect-MgGraph is connected to Account $($mgContext.Account) Tenant Domain: " -NoNewline
+            Write-Host $tenantDomain -ForegroundColor Green
+            $response = AskForChoice "Choice: " -Choices @("&Use this connection","&Disconnect and try again","E&xit") -ReturnString
+            # If the user types 'exit', break out of the loop
+            if ($response -eq 'Disconnect and try again') {
+                Write-Host "Disconnect-MgGraph..."
+                Disconnect-MgGraph | Out-Null
+                PressEnterToContinue "Done. Press <Enter> to connect again."
+                Continue # loop again
+            }
+            elseif ($response -eq 'exit') {
+                return
+            }
+            else { # on to next step
+                break
+            }
+        } else {
+            Write-Host "Connect-MgGraph not connected. Connecting now..."
+            PressEnterToContinue "Open a browser to an admin session on the desired tenant and press Enter."
+            Connect-MgGraph -Scopes $mgScopes -NoWelcome
+            # Confirm connection
+            $mgContext = Get-MgContext
+            if ($mgContext) {
+                Write-Host "Now connected to Microsoft Graph as $($mgContext.Account)"
+                $tenantDomain = (Get-MgDomain | Where-Object { $_.IsDefault }).Id
+                Write-Host "Tenant Domain: $tenantDomain" -ForegroundColor Green
+            } else {
+                Write-Error "Connect-MgGraph: Failed"
+            }
+        }
+    } # while true forever loop
+    Write-Host
+} # Connect-MgGraph
+if ($true) { # Connect-ExchangeOnline
+    # Check if Connect-ExchangeOnline is available
+    if (-not (Get-Command Connect-ExchangeOnline -ErrorAction SilentlyContinue)) {
+        Write-Host "ERROR: 'Connect-ExchangeOnline' command was not found."
+        Write-Host "Please install the ExchangeOnlineManagement module using:"
+        Write-Host "   Install-Module ExchangeOnlineManagement"
+        Write-Host "Or load the module if it is already installed, then try again."
+        Write-Host "Press any key to exit..."
+        PressEnterToContinue
+        exit
+    }
+    # Check if we are already connected
+    while ($true) {
+        try {
+            $orgConfig = Get-OrganizationConfig -ErrorAction Stop
+            $connected_eol=$true
+        }
+        catch {
+            $connected_eol=$false
+        }
+        if ($connected_eol)
+        { # already connected
+            # The Identity property typically shows your tenant's name or domain
+            $tenantNameOrDomain = $orgConfig.Identity
+            Write-Host "Connect-ExchangeOnline is connected to tenant: " -NoNewline
+            Write-host $tenantNameOrDomain -ForegroundColor Green
+            $response = AskForChoice "Choice: " -Choices @("&Use this connection","&Disconnect and try again","E&xit") -ReturnString
+            # If the user types 'exit', break out of the loop
+            if ($response -eq 'Disconnect and try again') {
+                Write-Host "Disconnect-ExchangeOnline..."
+                $null = Disconnect-ExchangeOnline -Confirm:$false
+                PressEnterToContinue "Done. Press <Enter> to connect again."
+                Continue # loop again
+            }
+            elseif ($response -eq 'exit') {
+                return
+            }
+            else { # on to next step
+                break
+            }
+        } # already connected
+        else
+        { # not connected
+            Write-Host "Connect-ExchangeOnline is not connected."
+            # check powershell version
+            if ($PSVersionTable.PSVersion.Major -lt 7)
+            { # PS 5
+                Write-Host "We will try 'Connect-ExchangeOnline'. Use admin creds to authenticate."
+                PressEnterToContinue
+                Write-Host "Connect-ExchangeOnline ... " -ForegroundColor Yellow
+                Connect-ExchangeOnline -ShowBanner:$false
+            } # PS 5
+            else 
+            { # PS 7
+                $choice = AskForChoice "Connect method (PS7)" -Choices @("&Browser code","&Password","E&xit") -Default 0 -ReturnString
+                if ($choice -eq "Exit") { exit }
+                if ($choice -eq "Browser code")
+                { # Browser code
+                    Write-Host "1. Open a browser to an admin session on the desired tenant"
+                    Write-Host "2. Copy the code below"
+                    Write-Host "3. Click the link and paste the code to authenticate"
+                    Write-Host "Connect-ExchangeOnline -Device ... " -ForegroundColor Yellow
+                    Connect-ExchangeOnline -ShowBanner:$false -Device
+                } # Browser code
+                else { # Password
+                    Write-Host "We will try 'Connect-ExchangeOnline' to authenticate. Use admin creds to authenticate."
+                    PressEnterToContinue
+                    Write-Host "Connect-ExchangeOnline ... " -ForegroundColor Yellow
+                    Connect-ExchangeOnline -ShowBanner:$false
+                } # Password
+            } # PS 7
+            Write-Host "Done" -ForegroundColor Yellow
             Continue # loop again
-        }
-        elseif ($response -eq 'exit') {
-            return
-        }
-        else { # on to next step
-            break
-        }
-    } # try steps
-    catch {
-        Write-Host "ERROR: Not connected to Exchange Online or invalid session."
-        Write-Host "We will try 'Connect-ExchangeOnline' to authenticate. Before we do, open a browser to an admin session on the desired tenant."
-        Write-Host "Press any key to continue..."
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        Write-Host "Connect-ExchangeOnline ... " -ForegroundColor Yellow
-        Connect-ExchangeOnline -ShowBanner:$false
-        Write-Host "Done" -ForegroundColor Yellow
-        Continue # loop again
-    } # catch error
-} # while true forever loop
-Write-Host
-#endregion Connect-ExchangeOnline
+        } # not connected
+    } # while true forever loop
+    Write-Host
+} # Connect-ExchangeOnline
+#endregion Connections
 $makechanges = AskForChoice "Ready to go live or just checking. Yes: Make changes, No: Just checking?"
 if ($makechanges) {
     Write-Host "You chose to MAKE CHANGES" -ForegroundColor Red
